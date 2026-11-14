@@ -12,13 +12,14 @@ type Props = {
 export function CardVisual({ player, view, large = false }: Props) {
   const captured = view.status === 'captured';
   const unknown = view.status === 'unknown';
+  const holo = view.holographic;
   const photo = view.photo;
   const pv = 10 + 10 * player.photos.length;
-  const tag = captured ? '★ Capturé' : view.status === 'seen' ? 'Vu' : '???';
+  const tag = captured ? (holo ? '✨ HOLO' : '★ Capturé') : view.status === 'seen' ? 'Vu' : '???';
   const name = captured ? player.pseudo : '?????';
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.cardPaper }, large && styles.cardLarge]}>
+    <View style={[styles.card, { backgroundColor: colors.cardPaper }, holo && styles.cardHolo, large && styles.cardLarge]}>
       <View style={[styles.header, { backgroundColor: player.color }]}>
         <Text style={styles.pseudo} numberOfLines={1}>
           {name}
@@ -35,14 +36,19 @@ export function CardVisual({ player, view, large = false }: Props) {
             <Text style={[styles.emoji, large && styles.emojiLarge]}>{photo?.emoji ?? player.emoji}</Text>
           </View>
         )}
-        {!captured && (
+        {view.masked ? (
+          <View style={styles.greyOverlay}>
+            <Text style={[styles.lock, large && styles.lockLarge]}>🔒</Text>
+            <Text style={styles.lockLabel}>Jusqu’à la fin de l’event</Text>
+          </View>
+        ) : !captured ? (
           <View style={styles.greyOverlay}>
             {unknown && <Text style={[styles.question, large && styles.questionLarge]}>?</Text>}
           </View>
-        )}
+        ) : null}
         {captured && (
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>CAPTURÉ</Text>
+            <Text style={styles.badgeText}>{holo ? '✨ HOLO' : 'CAPTURÉ'}</Text>
           </View>
         )}
       </View>
@@ -65,6 +71,15 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 340,
     alignSelf: 'center',
+  },
+  cardHolo: {
+    borderColor: colors.yellow,
+    borderWidth: 3,
+    shadowColor: colors.yellow,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.55,
+    shadowRadius: 10,
+    elevation: 8,
   },
   header: {
     flexDirection: 'row',
@@ -128,6 +143,20 @@ const styles = StyleSheet.create({
   },
   questionLarge: {
     fontSize: 120,
+  },
+  lock: {
+    fontSize: 44,
+  },
+  lockLarge: {
+    fontSize: 96,
+  },
+  lockLabel: {
+    color: 'rgba(20,20,20,0.65)',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
   badge: {
     position: 'absolute',

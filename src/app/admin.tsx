@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { useNow } from '../hooks/useNow';
 import { useDex } from '../store/DexContext';
 import { colors, radius } from '../theme';
-import type { EventConfig } from '../types';
+import type { EventConfig, GameMode } from '../types';
 import { windowInfo } from '../utils/eventWindow';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -21,6 +21,10 @@ export default function Admin() {
   const [closeHour, setCloseHour] = useState(String(event.closeHour));
   const [freePhotos, setFreePhotos] = useState(String(game.freePhotosPerMorning));
   const [qrAmount, setQrAmount] = useState(String(game.qrRechargeAmount));
+  const [mode, setMode] = useState<GameMode>(game.mode);
+  const [holoClassic, setHoloClassic] = useState(String(Math.round(game.holoChanceClassic * 100)));
+  const [holoCollection, setHoloCollection] = useState(String(Math.round(game.holoChanceCollection * 100)));
+  const [codeTtl, setCodeTtl] = useState(String(game.codeTtlSeconds));
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -58,10 +62,25 @@ export default function Admin() {
       setError('Le montant de recharge QR doit être un entier positif ou nul.');
       return;
     }
+    const hc = Number(holoClassic);
+    const hcc = Number(holoCollection);
+    if (!Number.isInteger(hc) || hc < 0 || hc > 100) {
+      setError('La chance holo classique doit être un entier entre 0 et 100 (%).');
+      return;
+    }
+    if (!Number.isInteger(hcc) || hcc < 0 || hcc > 100) {
+      setError('La chance holo collection doit être un entier entre 0 et 100 (%).');
+      return;
+    }
+    const ttl = Number(codeTtl);
+    if (!Number.isInteger(ttl) || ttl < 5 || ttl > 300) {
+      setError('La durée du code temporaire doit être un entier entre 5 et 300 secondes.');
+      return;
+    }
     setError(null);
     const nextEvent: EventConfig = { name: name.trim() || event.name, edition: edition.trim(), startDate, endDate, openHour: oh, closeHour: ch };
     saveEventConfig(nextEvent);
-    saveGameConfig({ freePhotosPerMorning: fp, qrRechargeAmount: qa });
+    saveGameConfig({ freePhotosPerMorning: fp, qrRechargeAmount: qa, mode, holoChanceClassic: hc / 100, holoChanceCollection: hcc / 100, codeTtlSeconds: ttl });
     setSaved(true);
   };
 
@@ -110,6 +129,30 @@ export default function Admin() {
           <TextInput style={styles.input} value={qrAmount} onChangeText={setQrAmount} placeholder="5" placeholderTextColor={colors.muted} keyboardType="numeric" />
         </View>
       </View>
+
+      <Text style={styles.label}>Mode de jeu des cartes</Text>
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.modeBtn, mode === 'classic' && styles.modeBtnActive]} onPress={() => setMode('classic')}>
+          <Text style={[styles.modeText, mode === 'classic' && styles.modeTextActive]}>🔍 Classique (scan QR)</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.modeBtn, mode === 'collection' && styles.modeBtnActive]} onPress={() => setMode('collection')}>
+          <Text style={[styles.modeText, mode === 'collection' && styles.modeTextActive]}>🃏 Collection (code temporaire)</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.row}>
+        <View style={styles.half}>
+          <Text style={styles.label}>Chance holo classique (%)</Text>
+          <TextInput style={styles.input} value={holoClassic} onChangeText={setHoloClassic} placeholder="2" placeholderTextColor={colors.muted} keyboardType="numeric" />
+        </View>
+        <View style={styles.half}>
+          <Text style={styles.label}>Chance holo collection (%)</Text>
+          <TextInput style={styles.input} value={holoCollection} onChangeText={setHoloCollection} placeholder="15" placeholderTextColor={colors.muted} keyboardType="numeric" />
+        </View>
+      </View>
+
+      <Text style={styles.label}>Durée du code temporaire de validation (secondes, 5-300)</Text>
+      <TextInput style={styles.input} value={codeTtl} onChangeText={setCodeTtl} placeholder="30" placeholderTextColor={colors.muted} keyboardType="numeric" />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {saved ? <Text style={styles.saved}>✅ Enregistré</Text> : null}
@@ -216,6 +259,28 @@ const styles = StyleSheet.create({
   previewValue: {
     fontWeight: '700',
     fontSize: 13,
+  },
+  modeBtn: {
+    flex: 1,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.btn,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  modeBtnActive: {
+    borderColor: colors.yellow,
+    backgroundColor: colors.panel2,
+  },
+  modeText: {
+    color: colors.muted,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  modeTextActive: {
+    color: colors.yellow,
+    fontWeight: '800',
   },
   backLink: {
     alignSelf: 'center',

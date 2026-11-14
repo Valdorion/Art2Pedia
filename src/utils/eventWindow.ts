@@ -19,6 +19,14 @@ export function isPlayWindow(now = new Date(), cfg: EventConfig = DEFAULT_EVENT)
   return h >= cfg.openHour && h < cfg.closeHour;
 }
 
+export function isEventOver(now = new Date(), cfg: EventConfig = DEFAULT_EVENT): boolean {
+  const key = dayKey(now);
+  if (key > cfg.endDate) return true;
+  if (key < cfg.endDate) return false;
+  const h = now.getHours() + now.getMinutes() / 60;
+  return h >= cfg.closeHour;
+}
+
 export type WindowInfo = { open: boolean; isEventDay: boolean; label: string; detail: string };
 
 export function windowInfo(now = new Date(), cfg: EventConfig = DEFAULT_EVENT): WindowInfo {

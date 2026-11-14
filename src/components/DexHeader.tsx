@@ -57,11 +57,16 @@ export function DexHeader() {
         <Link href="/scan-stand" style={[styles.actionBtn, styles.actionBtn2]}>
           <Text style={styles.actionText}>Stand (+{game.qrRechargeAmount})</Text>
         </Link>
+        <Link href="/collection" style={[styles.actionBtn, styles.actionBtn2]}>
+          <Text style={styles.actionText}>Collection</Text>
+        </Link>
         <Link href="/my-card" style={[styles.actionBtn, styles.actionBtn2]}>
           <Text style={styles.actionText}>Ma carte</Text>
         </Link>
       </View>
       <Text style={styles.rules}>
+        Mode : {game.mode === 'collection' ? 'Collection (photos du groupe masquées jusqu’à la fin de l’event, validation par code temporaire)' : 'Classique (scan du QR du joueur pour débloquer sa carte)'}.
+        Holo : {Math.round(game.holoChanceClassic * 100)}% en classique, {Math.round(game.holoChanceCollection * 100)}% si la carte fait partie d’une collection.{' '}
         Règles : {game.freePhotosPerMorning} photos offertes chaque matin d’événement, +{game.qrRechargeAmount} par QR de stand
         ({game.maxScansPerStandPerDay} scan/stand/jour). Jeu actif du {event.startDate} au {event.endDate}, de {event.openHour}h00 à{' '}
         {event.closeHour}h00. Une photo de duo capture la carte des 2 joueurs.
@@ -110,6 +115,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   actionBtn: {

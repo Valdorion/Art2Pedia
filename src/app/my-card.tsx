@@ -1,16 +1,19 @@
 import { Link, router } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CardVisual } from '../components/CardVisual';
+import { DAILY_PHOTO_EMOJIS } from '../config';
+import { useNow } from '../hooks/useNow';
 import { getProvider } from '../services/authProviders';
 import { useAuth } from '../store/AuthContext';
 import { useDex } from '../store/DexContext';
 import { colors, radius } from '../theme';
-import type { CardView, Photo } from '../types';
+import type { Photo } from '../types';
+import { dayKey } from '../utils/eventWindow';
 
 export default function MyCard() {
-  const { hydrated, me, players, myQr, capturedCount } = useDex();
+  const { hydrated, me, players, myQr, capturedCount, myCardView, setDailyPhoto, getValidationCode, game } = useDex();
   const { hydrated: authHydrated, session, signOut } = useAuth();
 
   useEffect(() => {
@@ -19,13 +22,32 @@ export default function MyCard() {
     else if (!me) router.replace('/register');
   }, [authHydrated, hydrated, session, me]);
 
+  const now = useNow();
+  const [validationCode, setValidationCode] = useState<string | null>(null);
+  useEffect(() => {
+    if (game.mode !== 'collection' || !me) return;
+    let alive = true;
+    const tick = async () => {
+      const c = await getValidationCode(me.id, new Date());
+      if (alive) setValidationCode(c);
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 1000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [game.mode, game.codeTtlSeconds, me, getValidationCode]);
+
   if (!me || !myQr) {
     return <View style={styles.container} />;
   }
 
   const myPlayer = players.find((p) => p.id === me.id);
   const myPhotos = myPlayer?.photos ?? [];
-  const view: CardView = { status: 'captured', photo: myPhotos.length > 0 ? myPhotos[myPhotos.length - 1] : null };
+  const view = myCardView();
+  const daily = myPlayer?.dailyPhoto ?? null;
+  const dailyToday = daily && daily.day === dayKey(now) ? daily : null;
   const total = players.filter((p) => p.id !== me.id).length;
   const pseudoOf = (id: string) => players.find((p) => p.id === id)?.pseudo ?? id;
 
@@ -38,6 +60,27 @@ export default function MyCard() {
         <QRCode value={myQr} size={180} backgroundColor="#FFFFFF" color="#141414" />
         <Text style={styles.qrHint}>Montre ce QR pour qu’on te photographie 📸</Text>
       </View>
+
+      <Text style={styles.sectionTitle}>Photo du jour (affichée sur ta carte aujourd’hui)</Text>
+      <View style={styles.emojiRow}>
+        {DAILY_PHOTO_EMOJIS.map((e) => (
+          <TouchableOpacity key={e} style={[styles.emojiBtn, dailyToday?.emoji === e && styles.emojiBtnActive]} onPress={() => setDailyPhoto(e)}>
+            <Text style={styles.emojiBtnText}>{e}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <Text style={styles.muted}>{dailyToday ? `Photo du jour définie : ${dailyToday.emoji}` : "Aucune photo du jour définie pour aujourd'hui."}</Text>
+
+      {game.mode === 'collection' ? (
+        <View style={styles.codeBox}>
+          <Text style={styles.sectionTitle}>Mon code de validation (mode Collection)</Text>
+          <Text style={styles.codeText}>{validationCode ?? '------'}</Text>
+          <Text style={styles.muted}>
+            Code temporaire type MFA : valable {game.codeTtlSeconds}s, usage unique. Montre-le à la personne qui te photographie pour valider ta
+            carte.
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.stats}>
         <View style={styles.stat}>
@@ -88,6 +131,9 @@ export default function MyCard() {
       <View style={styles.links}>
         <Link href="/dex" style={styles.linkBtn}>
           <Text style={styles.linkText}>📖 Voir le Pokédex</Text>
+        </Link>
+        <Link href="/collection" style={styles.linkBtn}>
+          <Text style={styles.linkText}>🃏 Collection</Text>
         </Link>
         <Link href="/admin" style={styles.linkBtn}>
           <Text style={styles.linkText}>⚙️ Admin</Text>
@@ -243,5 +289,40 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontWeight: '800',
     fontSize: 13,
+  },
+  emojiRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  emojiBtn: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.btn,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  emojiBtnActive: {
+    borderColor: colors.yellow,
+    backgroundColor: colors.panel2,
+  },
+  emojiBtnText: {
+    fontSize: 20,
+  },
+  codeBox: {
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.btn,
+    padding: 14,
+    gap: 8,
+    alignItems: 'center',
+  },
+  codeText: {
+    color: colors.yellow,
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: 8,
   },
 });

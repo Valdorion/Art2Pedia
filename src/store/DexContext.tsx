@@ -1,14 +1,19 @@
+import { CryptoDigestAlgorithm, digestStringAsync } from 'expo-crypto';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_EVENT, DEFAULT_GAME } from '../config';
 import { MOCK_PLAYERS } from '../data/mockPlayers';
-import { addDuoPhoto, getCardView } from '../services/game';
+import { addDuoPhoto, addQrUnlock, cardPhotoInCollection, getCardView, resolveCardView, sharedCollection } from '../services/game';
 import { loadState, saveState } from '../services/storage';
 import { useAuth } from './AuthContext';
-import type { CardView, EventConfig, GameConfig, Me, Photo, Player } from '../types';
+import type { CardView, CollectionGroup, DailyPhoto, EventConfig, GameConfig, Me, Photo, Player } from '../types';
 import { dayKey, isPlayWindow } from '../utils/eventWindow';
+import { holoChance, rollHolographic } from '../utils/holo';
 import { newId } from '../utils/id';
 import { consumeOne, effectiveStock, recharge, type StockState } from '../utils/photoStock';
 import { playerQr } from '../utils/qr';
+import { codeSecret, currentCode, verifyCode, type DigestFn } from '../utils/validationCode';
+
+const expoDigest: DigestFn = (data) => digestStringAsync(CryptoDigestAlgorithm.SHA256, data);
 
 type State = {
   hydrated: boolean;
@@ -18,7 +23,11 @@ type State = {
   scannedStands: string[];
   event: EventConfig;
   game: GameConfig;
+  collections: CollectionGroup[];
+  usedCodes: string[];
 };
+
+type UnlockResult = { ok: boolean; reason?: string; holographic?: boolean };
 
 type DexContextValue = State & {
   register: (pseudo: string, emoji: string, color: string) => void;
@@ -26,8 +35,17 @@ type DexContextValue = State & {
   saveGameConfig: (patch: Partial<GameConfig>) => void;
   takeDuoPhoto: (targetId: string, uri: string | null, emoji?: string) => { ok: boolean; reason?: string };
   rechargeFromStand: (standId: string) => { ok: boolean; amount?: number; reason?: string };
+  setDailyPhoto: (emoji: string, uri?: string | null) => void;
+  createCollection: (name: string) => CollectionGroup;
+  joinCollection: (groupId: string) => { ok: boolean; reason?: string };
+  revealCollection: (groupId: string) => void;
+  myCollection: CollectionGroup | null;
+  unlockWithQr: (targetId: string) => UnlockResult;
+  getValidationCode: (playerId: string, at?: Date) => Promise<string>;
+  validateWithCode: (targetId: string, input: string) => Promise<UnlockResult>;
   myQr: string | null;
   cardViewOf: (player: Player) => CardView;
+  myCardView: () => CardView;
   capturedCount: number;
 };
 
@@ -41,6 +59,8 @@ const INITIAL: State = {
   scannedStands: [],
   event: DEFAULT_EVENT,
   game: DEFAULT_GAME,
+  collections: [],
+  usedCodes: [],
 };
 
 export function DexProvider({ children }: { children: React.ReactNode }) {
@@ -72,6 +92,8 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
             scannedStands: Array.isArray(raw.scannedStands) ? (raw.scannedStands as string[]) : [],
             event: { ...DEFAULT_EVENT, ...(raw.event as Partial<EventConfig> | undefined) },
             game: { ...DEFAULT_GAME, ...(raw.game as Partial<GameConfig> | undefined) },
+            collections: Array.isArray(raw.collections) ? (raw.collections as CollectionGroup[]) : [],
+            usedCodes: Array.isArray(raw.usedCodes) ? (raw.usedCodes as string[]) : [],
           });
         } else {
           setState((s) => ({ ...s, hydrated: true }));
@@ -96,6 +118,8 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
       scannedStands: s.scannedStands,
       event: s.event,
       game: s.game,
+      collections: s.collections,
+      usedCodes: s.usedCodes,
     });
   }, [state]);
 
@@ -127,7 +151,7 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
     if (stock.stock <= 0) return { ok: false, reason: 'stock-vide' };
     const target = s.players.find((p) => p.id === targetId);
     if (!target) return { ok: false, reason: 'cible-inconnue' };
-    const photo: Photo = { id: newId(), uri, emoji, withPlayerId: targetId, createdAt: now.toISOString() };
+    const photo: Photo = { id: newId(), uri, emoji, withPlayerId: targetId, createdAt: now.toISOString(), via: 'duo' };
     setState((prev) => {
       if (!prev.me) return prev;
       const pNow = new Date();
@@ -156,9 +180,133 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, amount };
   };
 
+  const setDailyPhoto = (emoji: string, uri: string | null = null) => {
+    const now = new Date();
+    const daily: DailyPhoto = { day: dayKey(now), uri, emoji, setAt: now.toISOString() };
+    setState((prev) => {
+      if (!prev.me) return prev;
+      return {
+        ...prev,
+        players: prev.players.map((p) => (p.id === prev.me!.id ? { ...p, dailyPhoto: daily } : p)),
+      };
+    });
+  };
+
+  const createCollection = (name: string): CollectionGroup => {
+    const now = new Date();
+    const meId = stateRef.current.me?.id;
+    const group: CollectionGroup = {
+      id: `col-${newId()}`,
+      name: name.trim() || 'Collection',
+      memberIds: meId ? [meId] : [],
+      createdAt: now.toISOString(),
+      revealed: false,
+    };
+    setState((prev) => ({ ...prev, collections: [...prev.collections, group] }));
+    return group;
+  };
+
+  const joinCollection = (groupId: string): { ok: boolean; reason?: string } => {
+    const s = stateRef.current;
+    if (!s.me) return { ok: false, reason: 'no-me' };
+    const group = s.collections.find((c) => c.id === groupId);
+    if (!group) return { ok: false, reason: 'groupe-inconnu' };
+    if (group.memberIds.includes(s.me.id)) return { ok: false, reason: 'deja-membre' };
+    setState((prev) => ({
+      ...prev,
+      collections: prev.collections.map((c) => (c.id === groupId ? { ...c, memberIds: [...c.memberIds, s.me!.id] } : c)),
+    }));
+    return { ok: true };
+  };
+
+  const revealCollection = (groupId: string) => {
+    setState((prev) => ({
+      ...prev,
+      collections: prev.collections.map((c) => (c.id === groupId ? { ...c, revealed: true } : c)),
+    }));
+  };
+
+  const myCollection = useMemo(
+    () => state.collections.find((g) => state.me !== null && g.memberIds.includes(state.me.id)) ?? null,
+    [state.collections, state.me],
+  );
+
+  const unlockWithQr = (targetId: string): UnlockResult => {
+    const s = stateRef.current;
+    if (!s.me) return { ok: false, reason: 'no-me' };
+    const now = new Date();
+    if (!isPlayWindow(now, s.event)) return { ok: false, reason: 'hors-fenetre' };
+    if (s.game.mode !== 'classic') return { ok: false, reason: 'mode-collection' };
+    const target = s.players.find((p) => p.id === targetId);
+    if (!target) return { ok: false, reason: 'cible-inconnue' };
+    if (getCardView(target, s.me.id).status === 'captured') return { ok: false, reason: 'deja-capturee' };
+    const inCollection = s.collections.some((g) => g.memberIds.includes(target.id));
+    const holographic = rollHolographic(holoChance(s.game, inCollection));
+    const shared = sharedCollection(s.collections, s.me.id, target.id);
+    const photo: Photo = {
+      id: newId(),
+      uri: target.dailyPhoto?.uri ?? null,
+      emoji: target.dailyPhoto?.emoji ?? target.emoji,
+      withPlayerId: s.me.id,
+      createdAt: now.toISOString(),
+      via: 'qr',
+      groupId: shared?.id,
+      holographic,
+    };
+    setState((prev) => ({ ...prev, players: addQrUnlock(prev.players, s.me!.id, targetId, photo) }));
+    return { ok: true, holographic };
+  };
+
+  const getValidationCode = (playerId: string, at = new Date()): Promise<string> => {
+    return currentCode(codeSecret(playerId, at), at, stateRef.current.game.codeTtlSeconds, expoDigest);
+  };
+
+  const validateWithCode = async (targetId: string, input: string): Promise<UnlockResult> => {
+    const s = stateRef.current;
+    if (!s.me) return { ok: false, reason: 'no-me' };
+    const now = new Date();
+    if (!isPlayWindow(now, s.event)) return { ok: false, reason: 'hors-fenetre' };
+    if (s.game.mode !== 'collection') return { ok: false, reason: 'mode-classique' };
+    const target = s.players.find((p) => p.id === targetId);
+    if (!target) return { ok: false, reason: 'cible-inconnue' };
+    if (getCardView(target, s.me.id).status === 'captured') return { ok: false, reason: 'deja-capturee' };
+    const res = await verifyCode(codeSecret(target.id, now), input, now, s.game.codeTtlSeconds, s.usedCodes, expoDigest);
+    if (!res.ok) return { ok: false, reason: res.reason };
+    const shared = sharedCollection(s.collections, s.me.id, target.id);
+    const holographic = rollHolographic(holoChance(s.game, !!shared));
+    const photo: Photo = {
+      id: newId(),
+      uri: null,
+      emoji: '🤝',
+      withPlayerId: s.me.id,
+      createdAt: now.toISOString(),
+      via: 'code',
+      groupId: shared?.id,
+      holographic,
+    };
+    setState((prev) => ({
+      ...prev,
+      players: addDuoPhoto(prev.players, s.me!.id, targetId, photo),
+      usedCodes: [...prev.usedCodes, res.matchedKey],
+    }));
+    return { ok: true, holographic };
+  };
+
   const myQr = state.me ? playerQr(state.me.id) : null;
 
-  const cardViewOf = (player: Player): CardView => getCardView(player, state.me?.id ?? '');
+  const cardViewOf = (player: Player): CardView =>
+    resolveCardView(player, state.me?.id ?? '', { mode: state.game.mode, collections: state.collections, now: new Date(), event: state.event });
+
+  const myCardView = (): CardView => {
+    const meId = state.me?.id;
+    const myPlayer = state.players.find((p) => p.id === meId);
+    if (!meId || !myPlayer) return { status: 'unknown', photo: null, holographic: false, masked: false };
+    const last = myPlayer.photos.length > 0 ? myPlayer.photos[myPlayer.photos.length - 1] : null;
+    const base: CardView = { status: 'captured', photo: last, holographic: last?.holographic ?? false, masked: false };
+    if (state.game.mode !== 'collection') return base;
+    const extra = cardPhotoInCollection(myPlayer, base, state.collections, new Date(), state.event);
+    return { ...base, photo: extra.photo, masked: extra.masked };
+  };
 
   const capturedCount = useMemo(() => {
     const meId = state.me?.id;
@@ -173,8 +321,17 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
     saveGameConfig,
     takeDuoPhoto,
     rechargeFromStand,
+    setDailyPhoto,
+    createCollection,
+    joinCollection,
+    revealCollection,
+    myCollection,
+    unlockWithQr,
+    getValidationCode,
+    validateWithCode,
     myQr,
     cardViewOf,
+    myCardView,
     capturedCount,
   };
 

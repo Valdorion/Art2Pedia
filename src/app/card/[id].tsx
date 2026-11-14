@@ -28,31 +28,50 @@ export default function CardScreen() {
   }
 
   const view = cardViewOf(player);
+  const collectionMode = game.mode === 'collection';
   const open = isPlayWindow(now, event);
   const eff = effectiveStock(stock, now, game, event).stock;
   const canShoot = open && eff > 0;
-  const reason = !open ? 'hors-fenetre' : eff <= 0 ? 'stock-vide' : undefined;
+  const reason = !open ? 'hors-fenetre' : collectionMode ? undefined : eff <= 0 ? 'stock-vide' : undefined;
 
-  const statusText =
-    view.status === 'captured'
-      ? '★ Capturée ! Tu as pris une photo de duo avec ce joueur : sa carte passe en couleur.'
+  const statusText = view.masked
+    ? "🔒 Photo de collection masquée : elle sera révélée uniquement à la fin de l'event."
+    : view.status === 'captured'
+      ? view.holographic
+        ? '✨ Capturée en version holographique !'
+        : '★ Capturée ! Tu as pris une photo avec ce joueur : sa carte passe en couleur.'
       : view.status === 'seen'
-        ? 'Vue : déjà photographiée par quelqu’un d’autre (pas avec toi). Sa dernière photo reste grisée.'
-        : 'Inconnue : ce joueur n’a jamais été photographié. Carte grisée.';
+        ? "Vue : déjà photographiée par quelqu'un d'autre (pas avec toi). Sa dernière photo reste grisée."
+        : "Inconnue : ce joueur n'a jamais été photographié. Carte grisée.";
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>{view.status === 'captured' ? player.pseudo : '?????'}</Text>
       <CardVisual player={player} view={view} large />
       <Text style={styles.status}>{statusText}</Text>
+      {collectionMode ? (
+        <Text style={styles.status}>
+          {player.dailyPhoto ? `Photo du jour définie ce matin : ${player.dailyPhoto.emoji}` : "Ce joueur n'a pas encore défini sa photo du jour."}
+        </Text>
+      ) : null}
       <WindowBanner now={now} event={event} />
-      <TouchableOpacity
-        style={[styles.cta, !canShoot && styles.ctaDisabled]}
-        disabled={!canShoot}
-        onPress={() => router.push({ pathname: '/duo-camera', params: { target: player.id } })}
-      >
-        <Text style={styles.ctaText}>📸 Photographier {player.pseudo}</Text>
-      </TouchableOpacity>
+      {collectionMode ? (
+        <TouchableOpacity
+          style={[styles.cta, !open && styles.ctaDisabled]}
+          disabled={!open}
+          onPress={() => router.push({ pathname: '/enter-code', params: { target: player.id } })}
+        >
+          <Text style={styles.ctaText}>🔢 Valider avec le code de {player.pseudo}</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={[styles.cta, !canShoot && styles.ctaDisabled]}
+          disabled={!canShoot}
+          onPress={() => router.push({ pathname: '/duo-camera', params: { target: player.id } })}
+        >
+          <Text style={styles.ctaText}>📸 Photographier {player.pseudo}</Text>
+        </TouchableOpacity>
+      )}
       {reason ? <Text style={styles.reason}>{reasonText(reason)}</Text> : null}
       <Link href="/dex" style={styles.backLink}>
         <Text style={styles.backText}>← Retour au Pokédex</Text>
