@@ -44,8 +44,9 @@ npm test             # smoke tests métier (tsx scripts/smoke.ts)
 ```
 src/
   app/            routes Expo Router (root: ./src/app)
-    _layout.tsx     DexProvider + Stack
-    index.tsx       redirection register/dex
+    _layout.tsx     AuthProvider + DexProvider + Stack
+    index.tsx       redirection login/register/dex selon session
+    login.tsx       connexion/création de compte OAuth (5 providers)
     register.tsx    inscription (pseudo, emoji, couleur) → /dex
     dex.tsx         Pokédex grille 3 colonnes
     card/[id].tsx   fiche carte + bouton « Photographier »
@@ -54,12 +55,13 @@ src/
     scan-stand.tsx  scan QR stand → recharge
     my-card.tsx     ma carte + QR + stats + mes photos
     admin.tsx       édition fenêtre de jeu annuelle
-  components/     CardVisual, PlayerCard, DexHeader, WindowBanner, ScannerShell
+  components/     CardVisual, PlayerCard, DexHeader, WindowBanner, ScannerShell, ProviderButton
   data/           mockPlayers.ts (24 joueurs de démo, 8 duos pré-liés)
-  hooks/          useNow.ts (horloge rafraîchie)
-  services/       game.ts (états de carte, addDuoPhoto), storage.ts (AsyncStorage)
-  store/          DexContext.tsx (cœur de l'app)
-  utils/          eventWindow, photoStock, qr, id, reasons
+  hooks/          useNow.ts (horloge rafraîchie), useProviderSignIn.ts (flux OAuth/Apple par provider)
+  services/       game.ts (états de carte, addDuoPhoto), storage.ts (AsyncStorage), auth.ts (session),
+                  authProviders.ts (discovery/scopes/normalisation par provider), secureStorage.ts (tokens)
+  store/          AuthContext.tsx (session OAuth), DexContext.tsx (cœur de l'app)
+  utils/          eventWindow, photoStock, qr, id, reasons, jwt (decode payload), session (expiry)
   config.ts       valeurs par défaut + stands + préfixes QR
   theme.ts        palette
 preview/          canvas.html (canva autonome) + gen_canvas.py + canvas.png
@@ -74,6 +76,18 @@ Depuis l'écran d'inscription (« ⚙️ Admin ») ou « Ma carte » : nom/édit
 AsyncStorage (`art2dex/state/v1`) — **aucune date n'est codée en dur dans l'app**.
 
 Valeurs par défaut (`src/config.ts`) : Art2Play 2025, du 2025-10-25 au 2025-10-26, 9h00–19h00, 5 photos/matin, +5 par QR de stand.
+
+## Connexion / création de compte (providers OAuth)
+
+Écran `src/app/login.tsx` : **se connecter ou créer un compte** avec Google, Apple, Microsoft, Discord ou Twitch.
+Le même flux sert à la connexion et à la création de compte (le provider crée le compte à la première connexion).
+Après connexion, si aucune carte n'existe encore → écran `/register` (pseudo pré-rempli depuis le provider) pour créer la carte et le QR.
+
+- **Google, Microsoft, Discord, Twitch** : flux navigateur OAuth2/OIDC + PKCE via `expo-auth-session` (`src/hooks/useProviderSignIn.ts`), endpoints statiques dans `src/services/authProviders.ts`. Aucun client secret requis côté mobile (Discord : activer le flag « Public client », ou renseigner `EXPO_PUBLIC_DISCORD_CLIENT_SECRET`).
+- **Apple** : natif iOS via `expo-apple-authentication` (`usesAppleSignIn: true`, obligatoire App Store quand d'autres providers sont proposés). Sur Android/web : flux web `appleid.apple.com` si `EXPO_PUBLIC_APPLE_WEB_CLIENT_ID` + `EXPO_PUBLIC_APPLE_CLIENT_SECRET` (JWT signé) sont configurés.
+- **Session** : profil en AsyncStorage (`art2dex/auth/v1`, `src/services/auth.ts`), tokens en `expo-secure-store` (`src/services/secureStorage.ts`, fallback AsyncStorage sur web). Déconnexion depuis « Ma carte ».
+- **Config** : client IDs en variables `EXPO_PUBLIC_*` — copier `.env.example` en `.env`. Redirect URI à enregistrer chez chaque provider : `art2dex://` (dev build / standalone ; `exp://…` sous Expo Go, web : URL de l'app).
+- Les modules natifs ajoutés (`expo-apple-authentication`, `expo-secure-store`) nécessitent un **dev build** (`eas build --profile development`), pas Expo Go.
 
 ## Synchro backend (future)
 

@@ -3,6 +3,7 @@ import { DEFAULT_EVENT, DEFAULT_GAME } from '../config';
 import { MOCK_PLAYERS } from '../data/mockPlayers';
 import { addDuoPhoto, getCardView } from '../services/game';
 import { loadState, saveState } from '../services/storage';
+import { useAuth } from './AuthContext';
 import type { CardView, EventConfig, GameConfig, Me, Photo, Player } from '../types';
 import { dayKey, isPlayWindow } from '../utils/eventWindow';
 import { newId } from '../utils/id';
@@ -45,6 +46,7 @@ const INITIAL: State = {
 export function DexProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(INITIAL);
   const stateRef = useRef<State>(INITIAL);
+  const { session } = useAuth();
 
   useEffect(() => {
     stateRef.current = state;
@@ -98,7 +100,7 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
   }, [state]);
 
   const register = (pseudo: string, emoji: string, color: string) => {
-    const me: Me = { id: `me-${newId()}`, pseudo, emoji, color, createdAt: new Date().toISOString() };
+    const me: Me = { id: `me-${newId()}`, pseudo, emoji, color, createdAt: new Date().toISOString(), auth: session?.identity ?? null };
     setState((prev) => ({
       ...prev,
       me,

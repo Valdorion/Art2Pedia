@@ -1,18 +1,23 @@
 import { Link, router } from 'expo-router';
 import React, { useEffect } from 'react';
-import { FlatList, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { CardVisual } from '../components/CardVisual';
+import { getProvider } from '../services/authProviders';
+import { useAuth } from '../store/AuthContext';
 import { useDex } from '../store/DexContext';
 import { colors, radius } from '../theme';
 import type { CardView, Photo } from '../types';
 
 export default function MyCard() {
   const { hydrated, me, players, myQr, capturedCount } = useDex();
+  const { hydrated: authHydrated, session, signOut } = useAuth();
 
   useEffect(() => {
-    if (hydrated && !me) router.replace('/register');
-  }, [hydrated, me]);
+    if (!authHydrated || !hydrated) return;
+    if (!session) router.replace('/login');
+    else if (!me) router.replace('/register');
+  }, [authHydrated, hydrated, session, me]);
 
   if (!me || !myQr) {
     return <View style={styles.container} />;
@@ -71,6 +76,15 @@ export default function MyCard() {
         />
       )}
 
+      {me.auth ? (
+        <View style={styles.authRow}>
+          <Text style={styles.authText}>
+            Compte {getProvider(me.auth.provider).label}
+            {me.auth.email ? ` · ${me.auth.email}` : ''}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.links}>
         <Link href="/dex" style={styles.linkBtn}>
           <Text style={styles.linkText}>📖 Voir le Pokédex</Text>
@@ -79,6 +93,16 @@ export default function MyCard() {
           <Text style={styles.linkText}>⚙️ Admin</Text>
         </Link>
       </View>
+
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={async () => {
+          await signOut();
+          router.replace('/login');
+        }}
+      >
+        <Text style={styles.logoutText}>Se déconnecter</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -190,6 +214,34 @@ const styles = StyleSheet.create({
   linkText: {
     color: colors.text,
     fontWeight: '700',
+    fontSize: 13,
+  },
+  authRow: {
+    alignSelf: 'center',
+    backgroundColor: colors.panel2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  authText: {
+    color: colors.yellow,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  logoutBtn: {
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.btn,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  logoutText: {
+    color: colors.danger,
+    fontWeight: '800',
     fontSize: 13,
   },
 });

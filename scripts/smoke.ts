@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { DEFAULT_EVENT, DEFAULT_GAME, QR_PREFIX_PLAYER, QR_PREFIX_STAND, STANDS } from '../src/config';
+import { getProvider, normalizeProfile, PROVIDERS, resolveAuthClients } from '../src/services/authProviders';
 import { addDuoPhoto, getCardView } from '../src/services/game';
 import type { EventConfig, GameConfig, Photo, Player } from '../src/types';
 import { dayKey, isEventDay, isPlayWindow, windowInfo } from '../src/utils/eventWindow';
+import { decodeJwtPayload } from '../src/utils/jwt';
 import { consumeOne, effectiveStock, recharge, type StockState } from '../src/utils/photoStock';
 import { parseQr, playerQr, standQr } from '../src/utils/qr';
+import { isSessionExpired } from '../src/utils/session';
 
 // --- Fenêtre de jeu, config par défaut 2025 (sam 25 / dim 26 oct, 9h-19h) ---
 assert.equal(isEventDay(new Date(2025, 9, 24)), false, 'ven 24/10 hors événement');
@@ -103,5 +106,63 @@ assert.equal(parseQr('https://example.com'), null);
 assert.equal(parseQr('art2dex://'), null);
 assert.equal(STANDS.length, 5);
 assert.ok(STANDS.includes('stand-restauration'));
+
+// --- Providers OAuth ---
+assert.deepEqual(
+  PROVIDERS.map((p) => p.id),
+  ['google', 'apple', 'microsoft', 'discord', 'twitch'],
+  'les 5 providers demandés',
+);
+for (const p of PROVIDERS) {
+  assert.ok(p.discovery.authorizationEndpoint.startsWith('https://'), `${p.id} authorize en https`);
+  assert.ok(p.discovery.tokenEndpoint.startsWith('https://'), `${p.id} token en https`);
+  assert.ok(p.scopes.length > 0, `${p.id} a des scopes`);
+  assert.ok(p.clientIdEnvKey.startsWith('EXPO_PUBLIC_'), `${p.id} client id via env`);
+}
+assert.equal(getProvider('discord').label, 'Discord');
+assert.throws(() => getProvider('facebook' as never), 'provider inconnu rejeté');
+
+const clients = resolveAuthClients({ EXPO_PUBLIC_GOOGLE_CLIENT_ID: 'g-123', EXPO_PUBLIC_DISCORD_CLIENT_SECRET: 'sec' });
+assert.equal(clients.google.clientId, 'g-123');
+assert.equal(clients.google.clientSecret, undefined, 'pas de secret google');
+assert.equal(clients.discord.clientId, '', 'client id manquant = chaîne vide');
+assert.equal(clients.discord.clientSecret, 'sec', 'secret discord optionnel transmis');
+assert.equal(clients.twitch.clientId, '');
+
+// --- Normalisation des profils ---
+assert.deepEqual(normalizeProfile('google', { sub: 'g1', name: 'Ada Lovelace', email: 'ada@ex.com', picture: 'https://pic' }), {
+  provider: 'google',
+  providerUserId: 'g1',
+  displayName: 'Ada Lovelace',
+  email: 'ada@ex.com',
+  avatarUrl: 'https://pic',
+});
+assert.equal(normalizeProfile('google', { name: 'SansSub' }), null, 'sans sub = rejeté');
+const ms = normalizeProfile('microsoft', { sub: 'm1', name: 'Bob', preferred_username: 'bob@contoso.com' });
+assert.equal(ms?.email, 'bob@contoso.com', 'email microsoft via preferred_username');
+assert.equal(ms?.displayName, 'Bob');
+const dc = normalizeProfile('discord', { id: '42', username: 'dee', global_name: null, avatar: 'a1b2', email: null });
+assert.equal(dc?.displayName, 'dee', 'discord: username si pas de global_name');
+assert.equal(dc?.avatarUrl, 'https://cdn.discordapp.com/avatars/42/a1b2.png', 'avatar discord CDN');
+assert.equal(dc?.email, null);
+const tw = normalizeProfile('twitch', { sub: 't1', preferred_username: 'twitty', email: 't@x.io', picture: 'p' });
+assert.equal(tw?.displayName, 'twitty');
+assert.equal(tw?.avatarUrl, 'p');
+
+// --- JWT (Apple) ---
+const b64url = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+const appleJwt = `${b64url({ alg: 'RS256', typ: 'JWT' })}.${b64url({ sub: 'a1', email: 'priv@icloud.com' })}.sig`;
+assert.deepEqual(decodeJwtPayload(appleJwt), { sub: 'a1', email: 'priv@icloud.com' }, 'payload JWT décodé');
+assert.equal(decodeJwtPayload('pas-un-jwt'), null);
+assert.equal(decodeJwtPayload(`x.${b64url('chaine')}.y`), null, 'payload non-objet = null');
+const ap = normalizeProfile('apple', decodeJwtPayload(appleJwt) ?? {}, 'Jean Dupont');
+assert.equal(ap?.providerUserId, 'a1');
+assert.equal(ap?.displayName, 'Jean Dupont', 'nom Apple natif en fallback');
+assert.equal(ap?.email, 'priv@icloud.com');
+
+// --- Expiry de session ---
+assert.equal(isSessionExpired({ tokens: { accessToken: 'x', expiresAt: null } }), false, 'sans expiry = jamais expiré');
+assert.equal(isSessionExpired({ tokens: { accessToken: 'x', expiresAt: new Date(Date.now() - 1000).toISOString() } }), true, 'expiré');
+assert.equal(isSessionExpired({ tokens: { accessToken: 'x', expiresAt: new Date(Date.now() + 60000).toISOString() } }), false, 'encore valide');
 
 console.log('✅ smoke tests OK');
