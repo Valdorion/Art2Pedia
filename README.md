@@ -36,6 +36,7 @@ et « capturent » les autres participants en prenant des **photos de duo** avec
 | Photo du jour sur les cartes (définie le matin même) | `DailyPhoto` sur `Player`, `setDailyPhoto()` dans `DexContext`, sélecteur d'emoji dans `src/app/my-card.tsx` |
 | Validation par code temporaire type MFA (6 chiffres, TTL, usage unique) | `src/utils/validationCode.ts` (pur, digest injecté), `getValidationCode()`/`validateWithCode()` dans `DexContext` (SHA-256 via `expo-crypto`), écrans `my-card.tsx` (code affiché) et `enter-code.tsx` (saisie) |
 | Carte holographique : proba faible, plus forte en collection | `src/utils/holo.ts` (`holoChance`, `rollHolographic`), chances dans `GameConfig` (admin), badge ✨ HOLO dans `CardVisual.tsx` |
+| Classements : membres d'une collection + global de la convention, tri par cartes débloquées (photos validées pendant l'event), rafraîchis en direct pendant l'event, pseudos anonymisables | `src/services/leaderboard.ts` (pur : `eventLeaderboard`, `collectionLeaderboard`, rangs ex-aequo, filtre event, anonymisation), exposé dans `DexContext` (`globalLeaderboard`, `collectionBoard`, `leaderboardAnonymized` persisté), écran `src/app/leaderboard.tsx` (onglets Convention / Ma collection, horloge `useNow(1000)`) |
 
 ## Commandes
 
@@ -63,13 +64,14 @@ src/
     scan-friend.tsx scan QR joueur → débloque sa carte (mode classique)
     scan-stand.tsx  scan QR stand → recharge
     collection.tsx  groupes de collection, galerie masquée/révélée
+    leaderboard.tsx classements (convention + ma collection), rafraîchis pendant l'event
     enter-code.tsx  saisie du code temporaire de validation (mode collection)
     my-card.tsx     ma carte + QR + stats + mes photos
     admin.tsx       édition fenêtre de jeu annuelle
   components/     CardVisual, PlayerCard, DexHeader, WindowBanner, ScannerShell, ProviderButton
   data/           mockPlayers.ts (24 joueurs de démo, 8 duos pré-liés)
   hooks/          useNow.ts (horloge rafraîchie), useProviderSignIn.ts (flux OAuth/Apple par provider)
-  services/       game.ts (états de carte, addDuoPhoto), storage.ts (AsyncStorage), auth.ts (session),
+  services/       game.ts (états de carte, addDuoPhoto), leaderboard.ts (classements), storage.ts (AsyncStorage), auth.ts (session),
                   authProviders.ts (discovery/scopes/normalisation par provider), secureStorage.ts (tokens)
   store/          AuthContext.tsx (session OAuth), DexContext.tsx (cœur de l'app)
   utils/          eventWindow, photoStock, qr, id, reasons, jwt (decode payload), session (expiry)

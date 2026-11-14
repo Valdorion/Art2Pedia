@@ -129,6 +129,10 @@ export default function CollectionScreen() {
 
       <Text style={styles.muted}>Photo du jour (définie ce matin, affichée sur les cartes) : {dayKey(now)}</Text>
 
+      <Link href="/leaderboard" style={styles.backLink}>
+        <Text style={styles.backText}>🏆 Voir les classements →</Text>
+      </Link>
+
       <Link href="/dex" style={styles.backLink}>
         <Text style={styles.backText}>← Retour au Pokédex</Text>
       </Link>

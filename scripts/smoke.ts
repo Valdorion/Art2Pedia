@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { DEFAULT_EVENT, DEFAULT_GAME, QR_PREFIX_PLAYER, QR_PREFIX_STAND, STANDS } from '../src/config';
 import { getProvider, normalizeProfile, PROVIDERS, resolveAuthClients } from '../src/services/authProviders';
 import { addDuoPhoto, addQrUnlock, cardPhotoInCollection, collectionPhotos, getCardView, isCollectionRevealed, resolveCardView, sharedCollection } from '../src/services/game';
+import { buildLeaderboard, collectionLeaderboard, eventLeaderboard, playerStats } from '../src/services/leaderboard';
 import type { CardView, CollectionGroup, EventConfig, GameConfig, Photo, Player } from '../src/types';
 import { dayKey, isEventDay, isEventOver, isPlayWindow, windowInfo } from '../src/utils/eventWindow';
 import { clampChance, holoChance, rollHolographic } from '../src/utils/holo';
@@ -296,6 +297,46 @@ assert.equal(isSessionExpired({ tokens: { accessToken: 'x', expiresAt: new Date(
 
 console.log('✅ smoke tests OK');
 
+// --- Classements (issue #14) : global + collection, filtre event, rangs, anonymisation ---
+const lbPhoto = (withPlayerId: string, opts: { emoji?: string; at?: string; holo?: boolean } = {}): Photo => ({
+  id: `lb-${withPlayerId}-${opts.emoji ?? 'x'}-${opts.at ?? 'in'}`,
+  uri: null,
+  emoji: opts.emoji ?? '📸',
+  withPlayerId,
+  createdAt: opts.at ?? '2025-10-25T10:00:00.000Z',
+  holographic: opts.holo,
+});
+const lbAlice = mk('alice', [lbPhoto('bob')]);
+const lbBob = mk('bob', [lbPhoto('alice'), lbPhoto('carol')]);
+const lbCarol = mk('carol', []);
+const lbDave = mk('dave', [lbPhoto('bob', { emoji: '✨', holo: true })]);
+const lbEve = mk('eve', [lbPhoto('carol', { at: '2025-10-27T10:00:00.000Z' })]);
+const lbPlayers = [lbAlice, lbBob, lbCarol, lbDave, lbEve];
+
+assert.deepEqual(playerStats(lbPlayers, 'bob', DEFAULT_EVENT), { score: 2, holoCount: 1 }, 'score = photos validées par le joueur pendant l’event');
+assert.deepEqual(playerStats(lbPlayers, 'carol', DEFAULT_EVENT), { score: 1, holoCount: 0 }, 'photo hors event ignorée (sinon score 2)');
+assert.deepEqual(playerStats(lbPlayers, 'alice', DEFAULT_EVENT), { score: 1, holoCount: 0 });
+
+const board = eventLeaderboard(lbPlayers, DEFAULT_EVENT, { viewerId: 'alice' });
+assert.deepEqual(board.map((e) => e.playerId), ['bob', 'alice', 'carol', 'dave', 'eve'], 'tri par score décroissant puis pseudo');
+assert.deepEqual(board.map((e) => e.rank), [1, 2, 2, 4, 4], 'ex-aequo = même rang, le suivant saute');
+assert.equal(board[0].holoCount, 1, 'compteur holo du leader');
+assert.equal(board[1].isMe, true, 'viewer marqué isMe');
+assert.equal(board[1].label, 'alice');
+assert.equal(board[0].label, 'bob');
+
+const colLb = collectionLeaderboard(lbPlayers, { id: 'col-lb', name: 'Team', memberIds: ['alice', 'carol'], createdAt: '2025-10-25T09:00:00.000Z', revealed: false }, DEFAULT_EVENT);
+assert.deepEqual(colLb.map((e) => e.playerId), ['alice', 'carol'], 'classement de collection = membres du groupe uniquement');
+assert.deepEqual(colLb.map((e) => e.rank), [1, 1], 'ex-aequo dans la collection = même rang');
+assert.equal(buildLeaderboard(lbPlayers, null, DEFAULT_EVENT).length, 5, 'memberIds null = tous les joueurs');
+
+const anon = eventLeaderboard(lbPlayers, DEFAULT_EVENT, { anonymize: true, viewerId: 'alice' });
+assert.equal(anon.find((e) => e.playerId === 'alice')?.label, 'alice', 'mon propre pseudo reste visible en anonymisé');
+const bobAnon = anon.find((e) => e.playerId === 'bob');
+assert.ok(bobAnon && /^Joueur #\d{3}$/.test(bobAnon.label), 'pseudo masqué par un numéro anonymisé');
+const anon2 = eventLeaderboard(lbPlayers, DEFAULT_EVENT, { anonymize: true, viewerId: 'alice' });
+assert.equal(anon2.find((e) => e.playerId === 'bob')?.label, bobAnon?.label, 'label anonymisé stable');
+assert.equal(eventLeaderboard(lbPlayers, DEFAULT_EVENT).find((e) => e.playerId === 'bob')?.label, 'bob', 'sans anonymize = pseudos');
 }
 
 void main();
