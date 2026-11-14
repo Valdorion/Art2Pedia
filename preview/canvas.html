@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Art2Dex — Canva de prévisualisation</title>
+<style>
+  :root {
+    --bg: #0E1116; --panel: #171C24; --panel2: #1F2630; --border: #2A313B;
+    --red: #E3350D; --yellow: #FFCB05; --text: #F2F5F7; --muted: #9AA3AD;
+    --green: #3FB950; --danger: #F85149; --paper: #F5EFD9; --ink: #141414; --grey: #B9BEC6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; padding: 40px 24px 64px; }
+  h1 { font-size: 34px; font-weight: 900; }
+  h1 span { color: var(--red); }
+  .sub { color: var(--muted); margin: 8px 0 32px; font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 260px); gap: 28px; justify-content: center; }
+  .phone { width: 260px; height: 520px; background: #05070A; border: 3px solid var(--border); border-radius: 32px; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 90px; height: 18px; background: #05070A; border-radius: 999px; z-index: 5; }
+  .screen { flex: 1; padding: 40px 14px 14px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+  .cap { text-align: center; color: var(--muted); font-size: 12px; margin-top: 10px; font-weight: 600; }
+  .title { font-size: 22px; font-weight: 900; }
+  .title.red { color: var(--red); font-size: 28px; }
+  .muted { color: var(--muted); font-size: 11px; line-height: 1.5; }
+  .input { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 9px 10px; color: var(--text); font-size: 12px; }
+  .input.ph { color: var(--muted); }
+  .label { font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sw { width: 30px; height: 30px; border-radius: 8px; background: var(--panel); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .sw.sel { border-color: var(--yellow); }
+  .dot { width: 24px; height: 24px; border-radius: 12px; border: 2px solid transparent; }
+  .dot.sel { border-color: var(--text); }
+  .btn { border-radius: 10px; padding: 11px; text-align: center; font-weight: 800; font-size: 13px; }
+  .btn.red { background: var(--red); color: #fff; }
+  .btn.green { background: var(--green); color: #fff; }
+  .btn.yellow { background: var(--yellow); color: var(--ink); }
+  .btn.dark { background: var(--panel2); border: 1px solid var(--border); color: var(--text); font-weight: 700; }
+  .banner { border: 1px solid; border-radius: 10px; padding: 7px 9px; font-size: 10.5px; }
+  .banner.ok { border-color: var(--green); background: rgba(63,185,80,.14); color: var(--green); font-weight: 800; }
+  .banner.ko { border-color: var(--danger); background: rgba(248,81,73,.12); color: var(--danger); font-weight: 800; }
+  .banner small { display: block; color: var(--muted); font-weight: 500; margin-top: 2px; }
+  .pill { background: var(--panel2); border: 2px solid var(--border); border-radius: 999px; padding: 5px 12px; font-weight: 800; font-size: 13px; }
+  .pill.empty { border-color: var(--red); }
+  .actions { display: flex; gap: 6px; }
+  .actions .btn { flex: 1; font-size: 10px; padding: 9px 4px; }
+  /* carte pokémon */
+  .card { background: var(--paper); border-radius: 12px; overflow: hidden; border: 2px solid var(--border); color: var(--ink); }
+  .card .head { display: flex; justify-content: space-between; align-items: center; padding: 6px 9px; color: #fff; font-weight: 800; font-size: 12px; }
+  .card .head .tag { background: rgba(0,0,0,.28); border-radius: 999px; padding: 2px 8px; font-size: 9px; }
+  .card .ph { margin: 7px; height: 120px; border-radius: 8px; background: #E7DFC8; display: flex; align-items: center; justify-content: center; font-size: 44px; position: relative; overflow: hidden; }
+  .card .ph.large { height: 190px; font-size: 80px; }
+  .card .grey { position: absolute; inset: 0; background: rgba(140,145,152,.78); display: flex; align-items: center; justify-content: center; font-size: 52px; font-weight: 900; color: rgba(20,20,20,.55); }
+  .card .badge { position: absolute; top: 7px; right: 7px; background: var(--yellow); color: var(--ink); border: 2px solid var(--ink); border-radius: 999px; padding: 2px 9px; font-size: 9px; font-weight: 900; }
+  .card .foot { display: flex; justify-content: space-between; padding: 0 9px 8px; font-size: 10px; font-weight: 600; }
+  .card .foot b { color: #A82606; }
+  .dexgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .dexgrid .card .ph { height: 56px; font-size: 22px; margin: 5px; }
+  .dexgrid .card .head { padding: 4px 6px; font-size: 8px; }
+  .dexgrid .card .head .tag { font-size: 7px; padding: 1px 5px; }
+  .dexgrid .card .foot { display: none; }
+  .dexgrid .card .grey { font-size: 24px; }
+  /* caméra */
+  .cam { flex: 1; background: linear-gradient(160deg, #233043, #0E1116 70%); position: relative; border-radius: 10px; overflow: hidden; }
+  .cam .viseur { position: absolute; inset: 40px 30px; border: 3px solid var(--yellow); border-radius: 10px; }
+  .cam .face { position: absolute; top: 18px; width: 100%; text-align: center; font-size: 70px; }
+  .cam .top { position: absolute; top: 8px; width: 100%; text-align: center; color: #fff; font-weight: 800; font-size: 12px; }
+  .cam .top small { display: block; color: var(--yellow); font-size: 11px; }
+  .shutter { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: 52px; height: 52px; border-radius: 26px; background: var(--red); border: 4px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .qrbox { align-self: center; background: #fff; border-radius: 12px; padding: 12px; text-align: center; }
+  .qr { width: 110px; height: 110px; background:
+    conic-gradient(#141414 25%, #fff 0 50%, #141414 0 75%, #fff 0) 0 0/20px 20px,
+    conic-gradient(#fff 25%, #141414 0 50%, #fff 0 75%, #141414 0) 10px 10px/20px 20px; border: 4px solid #141414; }
+  .qrbox small { color: var(--ink); font-size: 9px; font-weight: 700; display: block; margin-top: 6px; max-width: 150px; }
+  .stats { display: flex; gap: 8px; }
+  .stat { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px; text-align: center; }
+  .stat b { color: var(--yellow); font-size: 18px; display: block; }
+  .stat span { color: var(--muted); font-size: 9px; }
+  .rules { grid-column: 2 / 4; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; }
+  .rules h2 { font-size: 17px; margin-bottom: 12px; color: var(--yellow); }
+  .rules ol { margin-left: 18px; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; color: var(--text); line-height: 1.45; }
+  .rules li b { color: var(--yellow); }
+  @media (max-width: 900px) { .grid { grid-template-columns: repeat(2, 260px); } .rules { grid-column: 1 / 3; } }
+</style>
+</head>
+<body>
+  <h1>Art2Dex <span>— Canva de prévisualisation</span></h1>
+  <p class="sub">7 maquettes d’écrans de l’app Expo React Native (mode Pokédex de l’Art2Play). Palette : rouge #E3350D / jaune #FFCB05, thème sombre.</p>
+
+  <div class="grid">
+    <!-- 1 Inscription -->
+    <div>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="title red">Art2Dex</div>
+        <p class="muted">Le Pokédex de la convention Art2Play 2025 — inscris-toi pour recevoir ta carte et ton QR.</p>
+        <div class="label">Pseudo</div><div class="input">PikaNoob</div>
+        <div class="label">Avatar</div>
+        <div class="swatches"><div class="sw sel">⚡</div><div class="sw">🧢</div><div class="sw">🔥</div><div class="sw">💧</div><div class="sw">🪨</div><div class="sw">😼</div><div class="sw">🦊</div><div class="sw">🧬</div><div class="sw">🍄</div><div class="sw">🌸</div></div>
+        <div class="label">Couleur de carte</div>
+        <div class="swatches"><div class="dot sel" style="background:#E3350D"></div><div class="dot" style="background:#FFCB05"></div><div class="dot" style="background:#3B4CCA"></div><div class="dot" style="background:#3FB950"></div><div class="dot" style="background:#FF7A1A"></div><div class="dot" style="background:#B065C9"></div><div class="dot" style="background:#4EA5D9"></div><div class="dot" style="background:#F2F5F7"></div></div>
+        <div class="btn red" style="margin-top:auto">Créer ma carte 🪪</div>
+        <div class="muted" style="text-align:center">⚙️ Admin</div>
+      </div></div>
+      <div class="cap">1 — Inscription (pseudo + emoji + couleur + QR perso)</div>
+    </div>
+
+    <!-- 2 Pokédex -->
+    <div>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><div class="title">Pokédex</div><div class="muted">3 / 24 cartes capturées</div></div>
+          <div class="pill">📸 5</div>
+        </div>
+        <div class="banner ok">Fenêtre de jeu ouverte<small>Jusqu’à 19h00</small></div>
+        <div class="actions"><div class="btn yellow">Scanner un ami</div><div class="btn dark">Stand (+5)</div><div class="btn dark">Ma carte</div></div>
+        <div class="dexgrid">
+          <div class="card"><div class="head" style="background:#FFCB05;color:#141414"><span>?????</span><span class="tag">???</span></div><div class="ph">🦊<div class="grey">?</div></div></div>
+          <div class="card"><div class="head" style="background:#3B4CCA"><span>?????</span><span class="tag">Vu</span></div><div class="ph">🤝<div class="grey"></div></div></div>
+          <div class="card"><div class="head" style="background:#E3350D"><span>MarioKart8</span><span class="tag">★ Capturé</span></div><div class="ph">🍖<div class="badge">CAPTURÉ</div></div></div>
+          <div class="card"><div class="head" style="background:#3FB950"><span>?????</span><span class="tag">???</span></div><div class="ph">🌱<div class="grey">?</div></div></div>
+          <div class="card"><div class="head" style="background:#FF7A1A"><span>?????</span><span class="tag">Vu</span></div><div class="ph">🔥<div class="grey"></div></div></div>
+          <div class="card"><div class="head" style="background:#B065C9"><span>Kakarotto</span><span class="tag">★ Capturé</span></div><div class="ph">🐉<div class="badge">CAPTURÉ</div></div></div>
+          <div class="card"><div class="head" style="background:#2D6CDF"><span>?????</span><span class="tag">???</span></div><div class="ph">💨<div class="grey">?</div></div></div>
+          <div class="card"><div class="head" style="background:#C9A7E8"><span>?????</span><span class="tag">???</span></div><div class="ph">🧬<div class="grey">?</div></div></div>
+          <div class="card"><div class="head" style="background:#F7A8C4"><span>?????</span><span class="tag">Vu</span></div><div class="ph">🏆<div class="grey"></div></div></div>
+        </div>
+      </div></div>
+      <div class="cap">2 — Pokédex en grille 3 colonnes (grise « ? », grise+photo, capturée bord jaune)</div>
+    </div>
+
+    <!-- 3 Carte capturée -->
+    <div>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="title" style="text-align:center">MarioKart8</div>
+        <div class="card"><div class="head" style="background:#E3350D"><span>MarioKart8</span><span class="tag">★ Capturé</span></div><div class="ph large">🍖<div class="badge">CAPTURÉ</div></div><div class="foot"><span>Type : Convention</span><b>PV 30</b></div></div>
+        <p class="muted" style="text-align:center">★ Capturée ! Photo de duo avec toi : la carte passe en couleur.</p>
+        <div class="banner ok">Fenêtre de jeu ouverte<small>Jusqu’à 19h00</small></div>
+        <div class="btn red">📸 Photographier MarioKart8</div>
+        <div class="muted" style="text-align:center">← Retour au Pokédex</div>
+      </div></div>
+      <div class="cap">3 — Fiche carte « capturée » (photo couleur + badge ★ Capturé)</div>
+    </div>
+
+    <!-- 4 Carte grise vue -->
+    <div>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="title" style="text-align:center">?????</div>
+        <div class="card"><div class="head" style="background:#3B4CCA"><span>?????</span><span class="tag">Vu</span></div><div class="ph large">🤝<div class="grey"></div></div><div class="foot"><span>Type : Convention</span><b>PV 20</b></div></div>
+        <p class="muted" style="text-align:center">Vue : déjà photographiée par quelqu’un d’autre (pas avec toi). Dernière photo grisée.</p>
+        <div class="banner ok">Fenêtre de jeu ouverte<small>Jusqu’à 19h00</small></div>
+        <div class="btn red">📸 Photographier ce joueur</div>
+        <div class="muted" style="text-align:center">← Retour au Pokédex</div>
+      </div></div>
+      <div class="cap">4 — Fiche carte « vue » (dernière photo grisée, pseudo masqué)</div>
+    </div>
+
+    <!-- 5 Caméra duo -->
+    <div>
+      <div class="phone"><div class="notch"></div><div class="screen" style="padding:40px 0 0">
+        <div class="cam">
+          <div class="top">Photo avec MarioKart8<small>📸 4 restantes</small></div>
+          <div class="face">🙂</div>
+          <div class="viseur"></div>
+          <div class="shutter">📸</div>
+        </div>
+      </div></div>
+      <div class="cap">5 — Caméra duo (selfie, obturateur, stock restant)</div>
+    </div>
+
+    <!-- 6 Stand QR -->
+    <div>
+      <div class="phone"><div class="notch"></div><div class="screen" style="padding:40px 0 0">
+        <div class="cam">
+          <div class="top">Recharge stand<small>+5 photos par QR de stand</small></div>
+          <div class="viseur" style="inset:70px 30px"></div>
+          <div class="muted" style="position:absolute;bottom:130px;width:100%;text-align:center;color:#fff">Scanne le QR d’un stand (stand-accueil, artistes, jeux indés, cosplay, restauration)</div>
+        </div>
+        <div class="banner ok" style="margin:0 14px 14px">🔋 Stand scanné : +5 photos<small>Nouveau stock : 📸 9</small></div>
+      </div></div>
+      <div class="cap">6 — Scan QR de stand (+5 photos, 1 scan/stand/jour, fenêtre ouverte)</div>
+    </div>
+
+    <!-- 7 Admin -->
+    <div>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="title">⚙️ Admin</div>
+        <p class="muted">Règle la fenêtre de jeu de l’édition annuelle (aucune date en dur).</p>
+        <div class="label">Édition</div><div class="input">2026</div>
+        <div style="display:flex;gap:6px">
+          <div style="flex:1"><div class="label">Début</div><div class="input">2026-10-24</div></div>
+          <div style="flex:1"><div class="label">Fin</div><div class="input">2026-10-25</div></div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <div style="flex:1"><div class="label">Ouverture</div><div class="input">10</div></div>
+          <div style="flex:1"><div class="label">Fermeture</div><div class="input">18</div></div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <div style="flex:1"><div class="label">Photos/matin</div><div class="input">5</div></div>
+          <div style="flex:1"><div class="label">Recharge QR</div><div class="input">+5</div></div>
+        </div>
+        <div class="btn green" style="margin-top:auto">Enregistrer</div>
+        <div class="muted" style="text-align:center">✅ Enregistré</div>
+      </div></div>
+      <div class="cap">7 — Admin (édition, dates AAAA-MM-JJ, horaires, photos, recharge QR)</div>
+    </div>
+
+    <!-- Panneau règles -->
+    <div class="rules">
+      <h2>Règles métier implémentées</h2>
+      <ol>
+        <li><b>Inscription à l’avance</b> → carte perso (pseudo, emoji, couleur) + QR personnel <code>art2dex://player/&lt;id&gt;</code>.</li>
+        <li><b>Dex en grille 3 colonnes</b> : jamais photographié → carte grise « ? » ; photographié (pas avec moi) → grise + dernière photo grisée ; photo de duo avec moi → « capturée », photo en couleur.</li>
+        <li><b>Photo de duo</b> → ajoutée sur les cartes des <b>2 joueurs</b>, consomme <b>1 photo de stock</b>.</li>
+        <li><b>Fenêtre de jeu</b> = uniquement les jours d’événement définis par l’admin (écran /admin, persistance AsyncStorage), de openHour à closeHour. Aucune date codée en dur.</li>
+        <li><b>Stock</b> : freePhotosPerMorning photos offertes chaque matin d’événement (reset par jour), recharge +qrRechargeAmount en scannant un QR de stand.</li>
+        <li><b>Stands</b> : stand-accueil, stand-artistes, stand-jeux-indes, stand-cosplay, stand-restauration — 1 scan/stand/jour, uniquement dans la fenêtre de jeu.</li>
+        <li><b>Thème Pokémon</b> : Pokédex, « ★ Capturé », PV, « Type : Convention », palette rouge #E3350D / jaune #FFCB05.</li>
+        <li><b>QR</b> : scan joueur → sa carte ; scan stand → recharge (dans la fenêtre) ; QR invalide → message d’erreur.</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,11 @@
+export type Photo = { id: string; uri: string | null; emoji: string; withPlayerId: string; createdAt: string };
+export type Player = { id: string; pseudo: string; emoji: string; color: string; photos: Photo[] };
+export type Me = { id: string; pseudo: string; emoji: string; color: string; createdAt: string; auth?: AuthIdentity | null };
+export type AuthProviderId = 'google' | 'apple' | 'microsoft' | 'discord' | 'twitch';
+export type AuthIdentity = { provider: AuthProviderId; providerUserId: string; displayName: string; email: string | null; avatarUrl: string | null };
+export type AuthTokens = { accessToken: string; refreshToken?: string; idToken?: string; expiresAt?: string | null };
+export type AuthSession = { identity: AuthIdentity; tokens: AuthTokens; createdAt: string };
+export type CardStatus = 'captured' | 'seen' | 'unknown';
+export type CardView = { status: CardStatus; photo: Photo | null };
+export type EventConfig = { name: string; edition: string; startDate: string; endDate: string; openHour: number; closeHour: number };
+export type GameConfig = { freePhotosPerMorning: number; qrRechargeAmount: number; maxScansPerStandPerDay: number };
