@@ -3,9 +3,10 @@ import React, { createContext, useContext, useEffect, useMemo, useRef, useState 
 import { DEFAULT_EVENT, DEFAULT_GAME } from '../config';
 import { MOCK_PLAYERS } from '../data/mockPlayers';
 import { addDuoPhoto, addQrUnlock, cardPhotoInCollection, getCardView, resolveCardView, sharedCollection } from '../services/game';
+import { collectionLeaderboard, eventLeaderboard } from '../services/leaderboard';
 import { loadState, saveState } from '../services/storage';
 import { useAuth } from './AuthContext';
-import type { CardView, CollectionGroup, DailyPhoto, EventConfig, GameConfig, Me, Photo, Player } from '../types';
+import type { CardView, CollectionGroup, DailyPhoto, EventConfig, GameConfig, LeaderboardEntry, Me, Photo, Player } from '../types';
 import { dayKey, isPlayWindow } from '../utils/eventWindow';
 import { holoChance, rollHolographic } from '../utils/holo';
 import { newId } from '../utils/id';
@@ -25,6 +26,7 @@ type State = {
   game: GameConfig;
   collections: CollectionGroup[];
   usedCodes: string[];
+  leaderboardAnonymized: boolean;
 };
 
 type UnlockResult = { ok: boolean; reason?: string; holographic?: boolean };
@@ -47,6 +49,9 @@ type DexContextValue = State & {
   cardViewOf: (player: Player) => CardView;
   myCardView: () => CardView;
   capturedCount: number;
+  setLeaderboardAnonymized: (anonymized: boolean) => void;
+  globalLeaderboard: LeaderboardEntry[];
+  collectionBoard: LeaderboardEntry[];
 };
 
 const DexContext = createContext<DexContextValue | null>(null);
@@ -61,6 +66,7 @@ const INITIAL: State = {
   game: DEFAULT_GAME,
   collections: [],
   usedCodes: [],
+  leaderboardAnonymized: false,
 };
 
 export function DexProvider({ children }: { children: React.ReactNode }) {
@@ -94,6 +100,7 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
             game: { ...DEFAULT_GAME, ...(raw.game as Partial<GameConfig> | undefined) },
             collections: Array.isArray(raw.collections) ? (raw.collections as CollectionGroup[]) : [],
             usedCodes: Array.isArray(raw.usedCodes) ? (raw.usedCodes as string[]) : [],
+            leaderboardAnonymized: typeof raw.leaderboardAnonymized === 'boolean' ? (raw.leaderboardAnonymized as boolean) : false,
           });
         } else {
           setState((s) => ({ ...s, hydrated: true }));
@@ -120,6 +127,7 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
       game: s.game,
       collections: s.collections,
       usedCodes: s.usedCodes,
+      leaderboardAnonymized: s.leaderboardAnonymized,
     });
   }, [state]);
 
@@ -314,6 +322,22 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
     return state.players.filter((p) => p.id !== meId && getCardView(p, meId).status === 'captured').length;
   }, [state.players, state.me]);
 
+  const setLeaderboardAnonymized = (anonymized: boolean) => {
+    setState((prev) => ({ ...prev, leaderboardAnonymized: anonymized }));
+  };
+
+  const leaderboardOpts = useMemo(
+    () => ({ anonymize: state.leaderboardAnonymized, viewerId: state.me?.id ?? '' }),
+    [state.leaderboardAnonymized, state.me?.id],
+  );
+
+  const globalLeaderboard = useMemo(() => eventLeaderboard(state.players, state.event, leaderboardOpts), [state.players, state.event, leaderboardOpts]);
+
+  const collectionBoard = useMemo(() => {
+    const group = state.collections.find((g) => state.me !== null && g.memberIds.includes(state.me.id));
+    return group ? collectionLeaderboard(state.players, group, state.event, leaderboardOpts) : [];
+  }, [state.players, state.collections, state.event, state.me, leaderboardOpts]);
+
   const value: DexContextValue = {
     ...state,
     register,
@@ -333,6 +357,9 @@ export function DexProvider({ children }: { children: React.ReactNode }) {
     cardViewOf,
     myCardView,
     capturedCount,
+    setLeaderboardAnonymized,
+    globalLeaderboard,
+    collectionBoard,
   };
 
   return <DexContext.Provider value={value}>{children}</DexContext.Provider>;

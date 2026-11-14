@@ -60,6 +60,9 @@ export function DexHeader() {
         <Link href="/collection" style={[styles.actionBtn, styles.actionBtn2]}>
           <Text style={styles.actionText}>Collection</Text>
         </Link>
+        <Link href="/leaderboard" style={[styles.actionBtn, styles.actionBtn2]}>
+          <Text style={styles.actionText}>🏆 Classement</Text>
+        </Link>
         <Link href="/my-card" style={[styles.actionBtn, styles.actionBtn2]}>
           <Text style={styles.actionText}>Ma carte</Text>
         </Link>

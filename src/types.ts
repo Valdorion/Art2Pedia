@@ -29,3 +29,13 @@ export type GameConfig = {
   holoChanceCollection: number;
   codeTtlSeconds: number;
 };
+export type LeaderboardEntry = {
+  rank: number;
+  playerId: string;
+  label: string;
+  emoji: string;
+  color: string;
+  score: number;
+  holoCount: number;
+  isMe: boolean;
+};
