@@ -6,12 +6,16 @@ import { CardVisual } from '../components/CardVisual';
 import { getProvider } from '../services/authProviders';
 import { useAuth } from '../store/AuthContext';
 import { useDex } from '../store/DexContext';
+import { useMfa } from '../store/MfaContext';
 import { colors, radius } from '../theme';
 import type { CardView, Photo } from '../types';
+import { isDeviceTrusted, mfaEnabled } from '../utils/mfa';
 
 export default function MyCard() {
   const { hydrated, me, players, myQr, capturedCount } = useDex();
   const { hydrated: authHydrated, session, signOut } = useAuth();
+  const { configFor } = useMfa();
+  const mfaCfg = me ? configFor(me.id) : null;
 
   useEffect(() => {
     if (!authHydrated || !hydrated) return;
@@ -93,6 +97,15 @@ export default function MyCard() {
           <Text style={styles.linkText}>⚙️ Admin</Text>
         </Link>
       </View>
+
+      {!me.auth ? (
+        <Link href="/mfa-setup" style={styles.mfaLink}>
+          <Text style={styles.mfaText}>
+            🔐 MFA (compte local)
+            {mfaEnabled(mfaCfg) ? (isDeviceTrusted(mfaCfg) ? ' · actif, appareil mémorisé' : ' · actif') : ' · inactif'}
+          </Text>
+        </Link>
+      ) : null}
 
       <TouchableOpacity
         style={styles.logoutBtn}
@@ -242,6 +255,20 @@ const styles = StyleSheet.create({
   logoutText: {
     color: colors.danger,
     fontWeight: '800',
+    fontSize: 13,
+  },
+  mfaLink: {
+    alignSelf: 'center',
+    backgroundColor: colors.panel2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.btn,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  mfaText: {
+    color: colors.yellow,
+    fontWeight: '700',
     fontSize: 13,
   },
 });

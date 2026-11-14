@@ -47,6 +47,8 @@ src/
     _layout.tsx     AuthProvider + DexProvider + Stack
     index.tsx       redirection login/register/dex selon session
     login.tsx       connexion/création de compte OAuth (5 providers)
+    mfa.tsx         porte MFA (TOTP / clé d'appareil + mémoriser 30 j)
+    mfa-setup.tsx   activation/désactivation du MFA compte local
     register.tsx    inscription (pseudo, emoji, couleur) → /dex
     dex.tsx         Pokédex grille 3 colonnes
     card/[id].tsx   fiche carte + bouton « Photographier »
@@ -58,10 +60,11 @@ src/
   components/     CardVisual, PlayerCard, DexHeader, WindowBanner, ScannerShell, ProviderButton
   data/           mockPlayers.ts (24 joueurs de démo, 8 duos pré-liés)
   hooks/          useNow.ts (horloge rafraîchie), useProviderSignIn.ts (flux OAuth/Apple par provider)
-  services/       game.ts (états de carte, addDuoPhoto), storage.ts (AsyncStorage), auth.ts (session),
-                  authProviders.ts (discovery/scopes/normalisation par provider), secureStorage.ts (tokens)
-  store/          AuthContext.tsx (session OAuth), DexContext.tsx (cœur de l'app)
-  utils/          eventWindow, photoStock, qr, id, reasons, jwt (decode payload), session (expiry)
+  services/       game.ts (états de carte, addDuoPhoto), storage.ts (AsyncStorage), auth.ts (session OAuth),
+                  authProviders.ts (providers OAuth), mfaStore.ts (config MFA + secrets), secureStorage.ts
+  store/          AuthContext.tsx (session OAuth), MfaContext.tsx (MFA comptes locaux), DexContext.tsx (cœur de l'app)
+  utils/          eventWindow, photoStock, qr, id, reasons, jwt (decode payload), session (expiry),
+                  sha1 + totp (TOTP RFC 6238), mfa (confiance appareil 30 j)
   config.ts       valeurs par défaut + stands + préfixes QR
   theme.ts        palette
 preview/          canvas.html (canva autonome) + gen_canvas.py + canvas.png
@@ -88,6 +91,15 @@ Après connexion, si aucune carte n'existe encore → écran `/register` (pseudo
 - **Session** : profil en AsyncStorage (`art2dex/auth/v1`, `src/services/auth.ts`), tokens en `expo-secure-store` (`src/services/secureStorage.ts`, fallback AsyncStorage sur web). Déconnexion depuis « Ma carte ».
 - **Config** : client IDs en variables `EXPO_PUBLIC_*` — copier `.env.example` en `.env`. Redirect URI à enregistrer chez chaque provider : `art2dex://` (dev build / standalone ; `exp://…` sous Expo Go, web : URL de l'app).
 - Les modules natifs ajoutés (`expo-apple-authentication`, `expo-secure-store`) nécessitent un **dev build** (`eas build --profile development`), pas Expo Go.
+
+## MFA pour les comptes locaux
+
+Les comptes **locaux** (mode démo hors ligne, sans provider OAuth) peuvent être protégés par un second facteur depuis « Ma carte → 🔐 MFA » (`src/app/mfa-setup.tsx`) :
+
+- **Application d'authentification (TOTP, RFC 6238)** : QR `otpauth://` + clé manuelle base32 à scanner, activation après vérification d'un code à 6 chiffres. Implémentation SHA-1/HMAC/TOTP 100 % pure et testée contre les vecteurs RFC 6238 (`src/utils/sha1.ts`, `src/utils/totp.ts`).
+- **Clé d'appareil** : 32 octets aléatoires (`expo-crypto`) stockés uniquement dans `expo-secure-store` ; la porte vérifie l'empreinte SHA-256 de la clé.
+- **« Mémoriser cet appareil 30 jours »** : à la porte MFA (`src/app/mfa.tsx`), la case cochée écrit `trustedUntil = now + 30 j` ; tant que la confiance est valide, l'app saute la vérification (`mfaGateRequired()` dans `src/utils/mfa.ts`). Expiration = re-demande du second facteur.
+- Config MFA en AsyncStorage (`art2dex/mfa/v1`), secrets (totp, device key) en SecureStore (`src/services/mfaStore.ts`). La route racine redirige vers `/mfa` si le compte local a le MFA actif et que l'appareil n'est pas mémorisé (`src/app/index.tsx`).
 
 ## Synchro backend (future)
 

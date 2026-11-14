@@ -5,6 +5,9 @@ import { addDuoPhoto, getCardView } from '../src/services/game';
 import type { EventConfig, GameConfig, Photo, Player } from '../src/types';
 import { dayKey, isEventDay, isPlayWindow, windowInfo } from '../src/utils/eventWindow';
 import { decodeJwtPayload } from '../src/utils/jwt';
+import { isDeviceTrusted, mfaEnabled, mfaGateRequired, trustUntilFrom, TRUST_DAYS, type MfaConfig } from '../src/utils/mfa';
+import { bytesToHex, hmacSha1, sha1, utf8Bytes } from '../src/utils/sha1';
+import { base32Decode, base32Encode, hotp, otpauthUri, totpAt, verifyTotp } from '../src/utils/totp';
 import { consumeOne, effectiveStock, recharge, type StockState } from '../src/utils/photoStock';
 import { parseQr, playerQr, standQr } from '../src/utils/qr';
 import { isSessionExpired } from '../src/utils/session';
@@ -164,5 +167,58 @@ assert.equal(ap?.email, 'priv@icloud.com');
 assert.equal(isSessionExpired({ tokens: { accessToken: 'x', expiresAt: null } }), false, 'sans expiry = jamais expiré');
 assert.equal(isSessionExpired({ tokens: { accessToken: 'x', expiresAt: new Date(Date.now() - 1000).toISOString() } }), true, 'expiré');
 assert.equal(isSessionExpired({ tokens: { accessToken: 'x', expiresAt: new Date(Date.now() + 60000).toISOString() } }), false, 'encore valide');
+
+// --- SHA-1 / HMAC-SHA1 ---
+assert.equal(bytesToHex(sha1(utf8Bytes('abc'))), 'a9993e364706816aba3e25717850c26c9cd0d89d', 'sha1("abc") vecteur connu');
+assert.equal(
+  bytesToHex(hmacSha1(utf8Bytes('key'), utf8Bytes('The quick brown fox jumps over the lazy dog'))),
+  'de7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9',
+  'HMAC-SHA1 vecteur RFC 2202',
+);
+
+// --- base32 ---
+const rfcSecret = utf8Bytes('12345678901234567890');
+assert.equal(base32Encode(rfcSecret), 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', 'base32 encode vecteur RFC 4648');
+assert.deepEqual(Array.from(base32Decode('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ')), Array.from(rfcSecret), 'base32 roundtrip');
+assert.throws(() => base32Decode('!!!'), 'base32 invalide rejeté');
+
+// --- TOTP : vecteurs RFC 6238 (SHA-1, 8 chiffres, secret ASCII "12345678901234567890") ---
+const vectors: Array<[number, string]> = [
+  [59, '94287082'],
+  [1111111109, '07081804'],
+  [1111111111, '14050471'],
+  [1234567890, '89005924'],
+  [2000000000, '69279037'],
+  [20000000000, '65353130'],
+];
+for (const [t, expected] of vectors) {
+  assert.equal(hotp(rfcSecret, Math.floor(t / 30), 8), expected, `HOTP RFC6238 T=${t}`);
+  assert.equal(totpAt(rfcSecret, t * 1000, 30, 8), expected, `TOTP RFC6238 T=${t}`);
+}
+assert.equal(hotp(rfcSecret, 1, 6), '287082', 'TOTP 6 chiffres T=59s');
+assert.equal(verifyTotp(rfcSecret, '287082', 59_000), true, 'verifyTotp accepte le code courant');
+assert.equal(verifyTotp(rfcSecret, '287082', 59_000 + 30_000), true, 'fenêtre ±1 step acceptée');
+assert.equal(verifyTotp(rfcSecret, '287082', 59_000 + 90_000), false, 'hors fenêtre rejeté');
+assert.equal(verifyTotp(rfcSecret, '000000', 59_000), false, 'mauvais code rejeté');
+assert.equal(verifyTotp(rfcSecret, '12345', 59_000), false, 'longueur invalide rejetée');
+
+// --- otpauth URI ---
+const uri = otpauthUri('Art2Dex', 'alice', 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ');
+assert.ok(uri.startsWith('otpauth://totp/Art2Dex:alice?secret=GEZDGNBVGY3TQOJQ'), 'otpauth label+secret');
+assert.ok(uri.includes('issuer=Art2Dex') && uri.includes('digits=6') && uri.includes('period=30'), 'otpauth params');
+
+// --- Logique MFA (confiance appareil 30j) ---
+assert.equal(TRUST_DAYS, 30);
+assert.equal(trustUntilFrom(new Date('2026-01-01T00:00:00.000Z')), '2026-01-31T00:00:00.000Z', 'confiance = +30 jours');
+const base: MfaConfig = { accountId: 'me-1', totpEnabled: true, deviceKeyEnabled: false, trustedUntil: null };
+assert.equal(mfaEnabled(base), true);
+assert.equal(mfaEnabled(null), false);
+assert.equal(mfaEnabled({ ...base, totpEnabled: false, deviceKeyEnabled: false }), false, 'MFA désactivé');
+assert.equal(isDeviceTrusted({ ...base, trustedUntil: '2999-01-01T00:00:00.000Z' }, new Date('2026-06-01')), true, 'appareil mémorisé valide');
+assert.equal(isDeviceTrusted({ ...base, trustedUntil: '2026-01-01T00:00:00.000Z' }, new Date('2026-06-01')), false, 'mémo expiré');
+assert.equal(isDeviceTrusted(base, new Date('2026-06-01')), false, 'jamais mémorisé');
+assert.equal(mfaGateRequired(base, new Date('2026-06-01')), true, 'porte MFA requise si actif et non mémorisé');
+assert.equal(mfaGateRequired({ ...base, trustedUntil: '2999-01-01T00:00:00.000Z' }, new Date('2026-06-01')), false, 'appareil mémorisé = pas de porte');
+assert.equal(mfaGateRequired({ ...base, totpEnabled: false, deviceKeyEnabled: false }, new Date('2026-06-01')), false, 'MFA inactif = pas de porte');
 
 console.log('✅ smoke tests OK');
