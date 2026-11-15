@@ -32,7 +32,7 @@ Dans le terminal Metro :
 
 - touche **`a`** → ouvre l’app sur l’émulateur Android connecté,
 - ou scanne le **QR code** affiché avec l’app **Expo Go** du téléphone (PC et téléphone sur le même Wi-Fi),
-- touche **`w`** → version web dans le navigateur (sans caméra, utile pour voir le dex et l’admin).
+- touche **`w`** → version web dans le navigateur (sans caméra, utile pour voir le dex et l’admin). Pour garder un **format mobile** dans le navigateur du PC (fenêtre type téléphone via le mode appareil des DevTools), suis [TUTORIEL-PC-FORMAT-MOBILE.md](TUTORIEL-PC-FORMAT-MOBILE.md).
 
 Alternative « build natif » (si Expo Go pose souci) :
 
