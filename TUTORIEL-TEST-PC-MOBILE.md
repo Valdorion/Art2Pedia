@@ -3,7 +3,7 @@
 Ce guide explique comment **lancer** puis **tester manuellement**, étape par étape, l'app **Art2Dex** ( livrée par la [MR #1](https://github.com/Valdorion/Art2Pedia/pull/1), branche `feat/art2dex-pokedex` — Expo React Native SDK 58, Expo Router ) **depuis un PC** Windows / macOS / Linux, tout en gardant un rendu **format téléphone** grâce au mode « appareil » des outils de développement du navigateur.
 
 > Après la fusion de la MR #1 dans `main`, un simple `git checkout main` suffit ; les commandes ci-dessous restent identiques.
-> Guides complémentaires : [TUTORIEL.md](TUTORIEL.md) (parcours complet téléphone/émulateur) et [TUTORIEL-PC-FORMAT-MOBILE.md](TUTORIEL-PC-FORMAT-MOBILE.md) (version détaillée web + device toolbar).
+> Guides complémentaires (sur la branche de la MR #1) : [TUTORIEL.md](https://github.com/Valdorion/Art2Pedia/blob/feat/art2dex-pokedex/TUTORIEL.md) (parcours complet téléphone/émulateur) et [TUTORIEL-PC-FORMAT-MOBILE.md](https://github.com/Valdorion/Art2Pedia/blob/feat/art2dex-pokedex/TUTORIEL-PC-FORMAT-MOBILE.md) (version détaillée web + device toolbar).
 
 ## 1. Principe
 
@@ -165,7 +165,7 @@ Get-Date -Format "yyyy-MM-dd"   # Windows PowerShell
 | `duo-camera` (photo de duo) | ❌ | `CameraView` d'`expo-camera` (natif) |
 | `scan-friend` / `scan-stand` (scan QR) | ❌ | `ScannerShell` → `expo-camera` (natif) |
 
-Pour ces 3 écrans, teste sur un **téléphone avec Expo Go** (PC et téléphone sur le même Wi-Fi, scanne le QR affiché par Metro) ou un **émulateur Android** — voir [TUTORIEL.md](TUTORIEL.md) §1, §3, §6.
+Pour ces 3 écrans, teste sur un **téléphone avec Expo Go** (PC et téléphone sur le même Wi-Fi, scanne le QR affiché par Metro) ou un **émulateur Android** — voir [TUTORIEL.md §1, §3, §6](https://github.com/Valdorion/Art2Pedia/blob/feat/art2dex-pokedex/TUTORIEL.md).
 
 Astuces pour les QR **depuis le PC** :
 
