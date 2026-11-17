@@ -85,7 +85,51 @@ Ouvre simplement **`preview/canvas.html`** dans un navigateur (aucune install). 
 | Caméra photo de duo | ✅ | ✅ (caméra virtuelle) | ❌ pas de caméra |
 | Scan QR ami / stand | ✅ (QR imprimé ou 2ᵉ écran) | ⚠️ photo sans QR réel | ❌ |
 
-## 9. Dépannage
+## 9. Cas particulier : Debian + VS Code uniquement (sans Android Studio)
+
+Si tu n’as qu’un PC Debian avec VS Code :
+
+1. **Installer Git, curl et Node.js 22 LTS** (les dépôts Debian livrent Node 18, trop vieux pour Expo SDK 58) :
+
+   ```bash
+   sudo apt update && sudo apt install -y git curl
+   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+   sudo apt install -y nodejs
+   node -v   # doit afficher v22.x
+   ```
+
+2. **Dans VS Code** : `Fichier > Ouvrir le dossier…`, puis clone dans le terminal intégré (`Ctrl+\``) :
+
+   ```bash
+   git clone https://github.com/Valdorion/Art2Pedia.git
+   cd Art2Pedia
+   git checkout feat/art2dex-pokedex
+   npm install
+   ```
+
+3. **Lancer la version web** (fonctionne avec seulement VS Code + un navigateur) :
+
+   ```bash
+   npm run web    # ouvre http://localhost:8081
+   ```
+
+   Sur le web, tout marche **sauf les écrans caméra** : inscription, Pokédex, fiches cartes, ma carte (le QR perso s’affiche — capture d’écran possible), admin.
+
+4. **Ouvrir la fenêtre de jeu** : ⚙️ Admin → `startDate`/`endDate` = aujourd’hui, ouverture `0`, fermeture `24` → bannière verte.
+
+5. **Pour la caméra et le scan QR**, il faut un appareil physique : installe **Expo Go** sur un téléphone Android/iOS connecté au même Wi-Fi, puis :
+
+   ```bash
+   npx expo start          # QR affiché dans le terminal VS Code → scanne-le avec Expo Go
+   npx expo start --tunnel # si le Wi-Fi/LAN bloque la connexion
+   sudo ufw allow 8081/tcp # si le pare-feu Debian bloque
+   ```
+
+6. **Vérifs rapides** dans le terminal VS Code : `npm test`, `npm run typecheck`, `npm run lint`.
+7. **Extension VS Code utile** : *ESLint* (`dbaeumer.vscode-eslint`) — le repo a un `eslint.config.js`, les erreurs apparaissent en direct dans l’éditeur.
+8. **Émulateur Android sur Debian (optionnel, lourd)** : Android Studio + `sudo apt install qemu-kvm`, ajouter l’utilisateur au groupe `kvm` (`sudo usermod -aG kvm $USER`, puis re-login), puis `npx expo start` → touche `a`. Inutile si tu as un téléphone avec Expo Go.
+
+## 10. Dépannage
 
 - **Port 8081 occupé** : `npx expo start --port 8082`
 - **Métro capricieux / cache** : `npx expo start -c`
